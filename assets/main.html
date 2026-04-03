@@ -105,33 +105,33 @@
         "登陆页面logo": {
           dimensions: { width: 238, height: 75 },
           maxSize: 500 * 1024, // 500KB
-          description: "尺寸238*75px，大小≤500KB"
+          description: "尺寸238*75px（±10%），大小≤500KB（±10%）"
         },
         "主界面左侧栏展开logo": {
           dimensions: { height: 42 },
           maxSize: 500 * 1024, // 500KB
-          description: "高度限制为42px，建议尺寸133*42px，大小≤500KB"
+          description: "高度限制为42px（±10%），建议尺寸133*42px，大小≤500KB（±10%）"
         },
         "主界面左侧栏收起logo": {
           dimensions: { height: 42 },
           maxSize: 500 * 1024, // 500KB
-          description: "高度限制为42px，建议尺寸38*42px，大小≤500KB"
+          description: "高度限制为42px（±10%），建议尺寸38*42px，大小≤500KB（±10%）"
         },
         "标签页logo": {
           dimensions: { width: 32, height: 32 },
           maxSize: 500 * 1024, // 500KB
-          description: "尺寸32*32px，大小≤500KB，支持ICO格式",
+          description: "尺寸32*32px（±10%），大小≤500KB（±10%），支持ICO格式",
           supportedTypes: FAVICON_SUPPORTED_TYPES
         },
         "登录页面背景图片": {
           dimensions: { width: 1920, height: 1080 },
           maxSize: 1024 * 1024, // 1MB
-          description: "尺寸1920*1080px，大小≤1MB"
+          description: "尺寸1920*1080px（±10%），大小≤1MB（±10%）"
         },
         "登录页面背景底图": {
           dimensions: { width: 1920, height: 1080 },
           maxSize: 500 * 1024, // 500KB
-          description: "尺寸1920*1080px，大小≤500KB"
+          description: "尺寸1920*1080px（±10%），大小≤500KB（±10%）"
         }
       };
 
@@ -625,10 +625,12 @@
                 return;
               }
 
-              // 检查文件大小
-              if (file.size > requirements.maxSize) {
+              // 检查文件大小（允许10%容差）
+              const maxSizeWithTolerance = requirements.maxSize * 1.1; // 增加10%容差
+              if (file.size > maxSizeWithTolerance) {
                 const maxSizeInKB = requirements.maxSize / 1024;
-                alert(`图片大小不能超过${maxSizeInKB >= 1024 ? (maxSizeInKB/1024).toFixed(1) + 'MB' : maxSizeInKB + 'KB'}！`);
+                const maxSizeWithToleranceInKB = maxSizeWithTolerance / 1024;
+                alert(`图片大小不能超过${maxSizeInKB >= 1024 ? (maxSizeInKB/1024).toFixed(1) + 'MB' : maxSizeInKB + 'KB'}（已放宽10%至${maxSizeWithToleranceInKB >= 1024 ? (maxSizeWithToleranceInKB/1024).toFixed(1) + 'MB' : maxSizeWithToleranceInKB.toFixed(0) + 'KB'}）！`);
                 e.target.value = "";
                 return;
               }
@@ -655,8 +657,32 @@
                     default: break;
                   }
                 }
-                if (requiredDimensions && ((requiredDimensions.width && img.width !== requiredDimensions.width) || img.height !== requiredDimensions.height)) {
-                  alert(`图片尺寸不符合要求！要求尺寸：${requiredDimensions.width ? `${requiredDimensions.width}*`: "高度限制"}${requiredDimensions.height}px，实际尺寸：${img.width}*${img.height}px`);
+                // 检查尺寸是否符合要求（允许10%容差）
+                let dimensionError = null;
+                if (requiredDimensions) {
+                  if (requiredDimensions.width && requiredDimensions.height) {
+                    // 宽度和高度都有要求，允许10%容差
+                    const minWidth = requiredDimensions.width * 0.9;
+                    const maxWidth = requiredDimensions.width * 1.1;
+                    const minHeight = requiredDimensions.height * 0.9;
+                    const maxHeight = requiredDimensions.height * 1.1;
+
+                    if (img.width < minWidth || img.width > maxWidth || img.height < minHeight || img.height > maxHeight) {
+                      dimensionError = `图片尺寸不符合要求！\n要求尺寸：${requiredDimensions.width}*${requiredDimensions.height}px\n允许范围：${Math.round(minWidth)}-${Math.round(maxWidth)} × ${Math.round(minHeight)}-${Math.round(maxHeight)}px\n实际尺寸：${img.width}*${img.height}px`;
+                    }
+                  } else if (requiredDimensions.height) {
+                    // 只有高度要求，允许10%容差
+                    const minHeight = requiredDimensions.height * 0.9;
+                    const maxHeight = requiredDimensions.height * 1.1;
+
+                    if (img.height < minHeight || img.height > maxHeight) {
+                      dimensionError = `图片高度不符合要求！\n要求高度：${requiredDimensions.height}px\n允许范围：${Math.round(minHeight)}-${Math.round(maxHeight)}px\n实际高度：${img.height}px`;
+                    }
+                  }
+                }
+
+                if (dimensionError) {
+                  alert(dimensionError);
                   e.target.value = "";
                   return;
                 }
