@@ -10,8 +10,33 @@
     <!-- SheetJS & JSZip -->
     <script src="./xlsx.full.min.js"></script>
     <script src="./jszip.min.js"></script>
+    <!-- html2canvas removed - preview capture not used -->
   </head>
   <body>
+    <!-- Sidebar toggle button (visible when sidebar closed) -->
+    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="openSidebar()">
+      <i class="fas fa-database"></i> 素材库
+    </button>
+
+    <div class="page-layout">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h2><i class="fas fa-database"></i> 素材库</h2>
+          <button class="sidebar-close-btn" onclick="closeSidebar()" title="关闭">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="sidebar-search">
+          <input type="text" id="sidebarSearchInput" placeholder="搜索厂商或产品..." oninput="filterTree(this.value)">
+        </div>
+        <div class="sidebar-content" id="sidebarContent">
+          <div class="sidebar-loading">加载中...</div>
+        </div>
+      </aside>
+
+      <!-- Main content -->
+      <div class="main-content">
     <div class="container">
       <header>
         <h1><i class="fas fa-cog"></i> OEM 信息配置工具V3.0.5</h1>
@@ -49,10 +74,14 @@
       </div>
 
     </div>
-    
+
     <!-- 悬浮底部按钮 -->
     <div class="floating-buttons">
       <div>
+        <input type="file" id="importOemZip" accept=".zip" style="display:none" onchange="importOemPackage(event)">
+        <button class="btn" onclick="document.getElementById('importOemZip').click()" style="background:linear-gradient(135deg,#36d1dc,#5b86e5);margin-right:8px;">
+          <i class="fas fa-file-import"></i> 导入 oem.zip
+        </button>
         <button class="btn" onclick="generateOemPackage()">
           <i class="fas fa-file-archive"></i> 生成 oem.zip
         </button>
@@ -70,6 +99,8 @@
         支持离线使用 · 导出文件包含 oeminfo.xlsx 与 images 目录
       </footer>
     </div>
+      </div><!-- end main-content -->
+    </div><!-- end page-layout -->
     <script type="text/javascript">
       // 主题色
       const THEMES = ["white", "B1", "B2", "B3", "B6", "B8", "B10", "black", "purple", "blue", "nxzw", "zhy", "dxai","cjkj", "B1YJ", "bjgw", "nfdw"];
@@ -238,15 +269,15 @@
         { A: "标签页logo", B: "favicon.ico" },
         { A: "登录页面背景图片", B: "form-bg.png" },
         { A: "登录页面背景底图", B: "login-base-bg.png" },
-        { A: "登录页产品名称", B: "", defaultValue: "Secsmart智能数据安全网关" },
-        { A: "产品名称", B: "", defaultValue: "Secsmart智能数据安全网关" },
-        { A: "网页标签名称", B: "", defaultValue: "Secsmart智能数据安全网关" },
-        { A: "copyright信息", B: "", defaultValue: `Copyright© ${new Date().getFullYear()} 闪捷信息科技有限公司` },
+        { A: "登录页产品名称", B: "", defaultValue: "" },
+        { A: "产品名称", B: "", defaultValue: "" },
+        { A: "网页标签名称", B: "", defaultValue: "" },
+        { A: "copyright信息", B: "", defaultValue: "" },
         { A: "系统版本", B: "", defaultValue: "" },
-        { A: "生产厂商", B: "", defaultValue: "闪捷信息科技有限公司" },
-        { A: "服务电话", B: "", defaultValue: "400-811-8806" },
-        { A: "厂商网站", B: "", defaultValue: "www.secsmart.com" },
-        { A: "厂商地址", B: "", defaultValue: "杭州市余杭区文一西路998号 未来科技城·海创园9幢" },
+        { A: "生产厂商", B: "", defaultValue: "" },
+        { A: "服务电话", B: "", defaultValue: "" },
+        { A: "厂商网站", B: "", defaultValue: "" },
+        { A: "厂商地址", B: "", defaultValue: "" },
         { A: "主题色", B: "white", defaultValue: "white" },
         { A: "许可协议勾选提示标题", B: "我已阅读并同意", defaultValue: "" },
         { A: "许可协议超链接标题1", B: "用户协议", defaultValue: "" },
@@ -520,7 +551,7 @@
               default: break;
             }
           }
-          placeholder.innerHTML = `点击选择图片<br><small style="font-weight:normal;color:#999;">${requirements.description}</small>`;
+          placeholder.innerHTML = `点击选择图片<br><small style="font-weight:normal;color:#999;">${requirements.description}</small><br><small style="font-weight:normal;color:#e74c3c;">输出文件名：${FILENAME_MAP[itemKey]}</small>`;
           
           const preview = document.createElement("img");
           preview.className = "image-preview";
@@ -635,7 +666,37 @@
                 return;
               }
 
-              // 检查图片尺寸
+              // SVG为矢量图，跳过尺寸检查
+              if (file.type === 'image/svg+xml' || file.name.endsWith('.svg')) {
+                uploadedFiles[itemKey] = file;
+                window.parent.postMessage({
+                  type: 'oemDataUpdate',
+                  fieldType: 'image',
+                  fieldName: itemKey,
+                  fileName: file.name,
+                  fileSize: file.size
+                }, '*');
+                const readerSvg = new FileReader();
+                readerSvg.onload = () => {
+                  const base64Data = {};
+                  const saved = sessionStorage.getItem('uploadedImagesBase64');
+                  if (saved) Object.assign(base64Data, JSON.parse(saved));
+                  base64Data[itemKey] = readerSvg.result;
+                  sessionStorage.setItem('uploadedImagesBase64', JSON.stringify(base64Data));
+                  saveDataToSessionStorage();
+                };
+                readerSvg.readAsDataURL(file);
+                // Show preview
+                const svgUrl = URL.createObjectURL(file);
+                preview.src = svgUrl;
+                preview.style.display = 'block';
+                removeIcon.style.display = 'inline-block';
+                placeholder.style.display = 'none';
+                e.target.value = '';
+                return;
+              }
+
+              // 检查图片尺寸（非SVG）
               const img = new Image();
               const objectUrl = URL.createObjectURL(file);
               
@@ -851,6 +912,7 @@
             input.value = defaultValue;
             input.className = "form-input";
             input.placeholder = "请输入内容";
+            input.setAttribute("data-field", itemKey);
             
             // 设置字符限制
             const maxLength = LONG_TEXT_FIELDS.includes(itemKey) ? 200 : 50;
@@ -869,13 +931,31 @@
               if (e.target.value.length > maxLength) {
                 e.target.value = e.target.value.substring(0, maxLength);
               }
-              
+
               userInput[itemKey] = e.target.value;
               charCount.textContent = `${e.target.value.length}/${maxLength}`;
-              
+
+              // 生产厂商为空时，三个产品名称字段自动同步
+              const syncFields = ['登录页产品名称', '产品名称', '网页标签名称'];
+              if (!userInput['生产厂商'] && syncFields.includes(itemKey)) {
+                syncFields.forEach(field => {
+                  if (field !== itemKey) {
+                    userInput[field] = e.target.value;
+                    const targetInput = document.querySelector(`input[data-field="${field}"]`);
+                    if (targetInput) {
+                      targetInput.value = e.target.value;
+                      const targetCount = targetInput.nextElementSibling;
+                      if (targetCount && targetCount.classList.contains('char-count')) {
+                        targetCount.textContent = `${e.target.value.length}/${targetInput.maxLength}`;
+                      }
+                    }
+                  }
+                });
+              }
+
               // 实时保存到 sessionStorage
               saveDataToSessionStorage();
-              
+
               // 通知父窗口内容已更新
               window.parent.postMessage({
                 type: 'oemDataUpdate',
@@ -1043,6 +1123,109 @@
         sessionStorage.setItem('_personalizedData', JSON.stringify(personalizedData));
       }
 
+      // 导入 oem.zip 恢复表单配置
+      async function importOemPackage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        event.target.value = '';
+
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const zip = await JSZip.loadAsync(arrayBuffer);
+
+          // Parse oeminfo.xlsx
+          const xlsxFile = zip.file(/oem\/oeminfo\.xlsx/)[0] || zip.file(/oeminfo\.xlsx/)[0];
+          if (xlsxFile) {
+            const xlsxData = await xlsxFile.async('arraybuffer');
+            const wb = XLSX.read(xlsxData, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws);
+
+            rows.forEach(row => {
+              const key = row['OEM信息修改项'];
+              const val = row['修改内容（一线填写）'] || '';
+              if (key && val && !IMAGE_ITEMS.includes(key) && !LICENSE_FILE_ITEMS.includes(key)) {
+                userInput[key] = val;
+              }
+            });
+          }
+
+          // Parse images
+          const imageEntries = [];
+          zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir && relativePath.match(/oem\/images\//)) {
+              imageEntries.push(zipEntry);
+            }
+          });
+
+          const reverseFilenameMap = {};
+          for (const [k, v] of Object.entries(FILENAME_MAP)) {
+            reverseFilenameMap[v] = k;
+          }
+
+          for (const entry of imageEntries) {
+            const baseName = entry.name.split('/').pop();
+            const itemKey = reverseFilenameMap[baseName];
+            if (!itemKey) continue;
+
+            const blob = await entry.async('blob');
+            let mimeType = blob.type || 'image/png';
+            if (baseName.endsWith('.svg')) mimeType = 'image/svg+xml';
+            else if (baseName.endsWith('.ico')) mimeType = 'image/x-icon';
+
+            const typedBlob = new Blob([await entry.async('arraybuffer')], { type: mimeType });
+            typedBlob.name = baseName;
+            uploadedFiles[itemKey] = typedBlob;
+
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64Data = {};
+              const saved = sessionStorage.getItem('uploadedImagesBase64');
+              if (saved) Object.assign(base64Data, JSON.parse(saved));
+              base64Data[itemKey] = reader.result;
+              sessionStorage.setItem('uploadedImagesBase64', JSON.stringify(base64Data));
+            };
+            reader.readAsDataURL(typedBlob);
+          }
+
+          // Parse license files
+          zip.forEach(async (relativePath, zipEntry) => {
+            if (!zipEntry.dir && relativePath.match(/oem\/files\//)) {
+              const baseName = relativePath.split('/').pop();
+              // Match license file to slot by filename from userInput
+              for (const licKey of LICENSE_FILE_ITEMS) {
+                const expectedName = userInput[licKey];
+                if (expectedName && baseName === expectedName) {
+                  const blob = await zipEntry.async('blob');
+                  blob.name = baseName;
+                  licenseFiles[licKey] = blob;
+
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    let licBase64 = {};
+                    const saved = sessionStorage.getItem('uploadedLicenseFiles');
+                    if (saved) licBase64 = JSON.parse(saved);
+                    licBase64[licKey] = reader.result;
+                    sessionStorage.setItem('uploadedLicenseFiles', JSON.stringify(licBase64));
+                  };
+                  reader.readAsDataURL(blob);
+                }
+              }
+            }
+          });
+
+          saveDataToSessionStorage();
+          alert('✅ oem.zip 导入成功！');
+
+          // Notify parent, then reload to fully restore form state
+          window.parent.postMessage({ type: 'oemDataUpdate', fieldType: 'import' }, '*');
+          setTimeout(() => window.location.reload(), 500);
+        } catch (err) {
+          console.error(err);
+          alert('❌ 导入失败：' + err.message);
+        }
+      }
+
       async function generateOemPackage() {
         try {
           const zip = new JSZip();
@@ -1138,13 +1321,46 @@
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = "oem.zip";
+          const now = new Date();
+          const dateStr = now.getFullYear().toString() +
+            String(now.getMonth()+1).padStart(2,'0') +
+            String(now.getDate()).padStart(2,'0');
+          const mf = (userInput['生产厂商'] || '白牌').replace(/[\\/:*?"<>|]/g, '_');
+          const pn = (userInput['产品名称'] || 'oem').replace(/[\\/:*?"<>|]/g, '_');
+          a.download = `${dateStr}_${mf}_${pn}_oem.zip`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
 
           alert("✅ oem.zip 已生成并开始下载！");
+
+          // Archive to server OEM_ZIYUAN
+          try {
+            const reader = new FileReader();
+            reader.onload = async function() {
+              const base64Data = reader.result.split(',')[1];
+              const resp = await fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  zip: base64Data,
+                  manufacturer: userInput['生产厂商'] || '',
+                  productName: userInput['产品名称'] || '',
+                }),
+              });
+              const result = await resp.json();
+              if (result.success) {
+                console.log('Archived to', result.vendorDir, result);
+              } else {
+                console.warn('Archive failed:', result.error);
+              }
+            };
+            reader.readAsDataURL(blob);
+          } catch (archiveErr) {
+            console.warn('Archive skipped:', archiveErr.message);
+          }
+
         } catch (err) {
           console.error(err);
           alert("❌ 导出失败：" + err.message);
@@ -1326,18 +1542,272 @@
         }
       }
       
+      // ============ Sidebar / Library functions ============
+      let libraryData = null;
+
+      function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+      }
+
+      function openSidebar() {
+        document.getElementById('sidebar').classList.add('open');
+        document.body.classList.add('sidebar-open');
+        if (!libraryData) loadLibraryData();
+      }
+
+      function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.body.classList.remove('sidebar-open');
+      }
+
+      async function loadLibraryData() {
+        const container = document.getElementById('sidebarContent');
+        container.innerHTML = '<div class="sidebar-loading">加载中...</div>';
+        try {
+          const resp = await fetch('/api/library');
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          libraryData = await resp.json();
+          renderTree(libraryData);
+        } catch (e) {
+          console.error('Failed to load library:', e);
+          container.innerHTML = '<div class="sidebar-empty">加载失败，请确认服务器已启动</div>';
+        }
+      }
+
+      function renderTree(data) {
+        const container = document.getElementById('sidebarContent');
+        if (!data.vendors || data.vendors.length === 0) {
+          container.innerHTML = '<div class="sidebar-empty">暂无素材数据</div>';
+          return;
+        }
+        let html = '';
+        data.vendors.forEach((vendor, vIdx) => {
+          const productsHtml = vendor.products.map((prod, pIdx) =>
+            '<div class="tree-product-item" data-v="' + vIdx + '" data-p="' + pIdx + '" onclick="selectProduct(' + vIdx + ',' + pIdx + ',this)">' +
+              '<i class="fas fa-file-alt" style="margin-right:6px;font-size:0.75rem;color:#64748b;"></i>' +
+              escapeHtml(prod.name) +
+            '</div>'
+          ).join('');
+
+          html +=
+            '<div class="tree-vendor" data-vendor="' + vIdx + '">' +
+              '<div class="tree-vendor-header" onclick="toggleVendorNode(this)">' +
+                '<span class="arrow">&#9654;</span>' +
+                '<span class="vendor-name"><i class="fas fa-building" style="margin-right:6px;font-size:0.8rem;color:#64748b;"></i>' + escapeHtml(vendor.name) + '</span>' +
+              '</div>' +
+              '<div class="tree-product-list">' + productsHtml + '</div>' +
+            '</div>';
+        });
+        container.innerHTML = html;
+      }
+
+      function toggleVendorNode(headerEl) {
+        const productList = headerEl.nextElementSibling;
+        const arrow = headerEl.querySelector('.arrow');
+        const isCollapsed = productList.classList.contains('collapsed');
+        if (isCollapsed) {
+          productList.classList.remove('collapsed');
+          arrow.classList.remove('collapsed');
+        } else {
+          productList.classList.add('collapsed');
+          arrow.classList.add('collapsed');
+        }
+      }
+
+      function filterTree(query) {
+        query = query.trim().toLowerCase();
+        const container = document.getElementById('sidebarContent');
+        if (!libraryData || !libraryData.vendors) return;
+
+        if (!query) {
+          renderTree(libraryData);
+          return;
+        }
+
+        let html = '';
+        libraryData.vendors.forEach((vendor, vIdx) => {
+          const vendorMatch = vendor.name.toLowerCase().includes(query);
+          const matchedProducts = vendor.products.filter(p => p.name.toLowerCase().includes(query));
+
+          if (vendorMatch || matchedProducts.length > 0) {
+            const productsToShow = vendorMatch ? vendor.products : matchedProducts;
+            const productsHtml = productsToShow.map((prod, i) => {
+              const origIdx = vendor.products.indexOf(prod);
+              return '<div class="tree-product-item" data-v="' + vIdx + '" data-p="' + origIdx + '" onclick="selectProduct(' + vIdx + ',' + origIdx + ',this)">' +
+                '<i class="fas fa-file-alt" style="margin-right:6px;font-size:0.75rem;color:#64748b;"></i>' +
+                escapeHtml(prod.name) +
+              '</div>';
+            }).join('');
+
+            html +=
+              '<div class="tree-vendor" data-vendor="' + vIdx + '">' +
+                '<div class="tree-vendor-header" onclick="toggleVendorNode(this)">' +
+                  '<span class="arrow">&#9654;</span>' +
+                  '<span class="vendor-name"><i class="fas fa-building" style="margin-right:6px;font-size:0.8rem;color:#64748b;"></i>' + escapeHtml(vendor.name) + '</span>' +
+                '</div>' +
+                '<div class="tree-product-list">' + productsHtml + '</div>' +
+              '</div>';
+          }
+        });
+
+        container.innerHTML = html || '<div class="sidebar-empty">未找到匹配结果</div>';
+      }
+
+      async function selectProduct(vIdx, pIdx, el) {
+        if (!libraryData) return;
+        const vendor = libraryData.vendors[vIdx];
+        const product = vendor.products[pIdx];
+        if (!vendor || !product) return;
+
+        // Highlight active item
+        document.querySelectorAll('.tree-product-item.active').forEach(e => e.classList.remove('active'));
+        if (el) el.classList.add('active');
+
+        if (!confirm('加载 "' + product.name + '" 的配置将覆盖当前表单内容，确定继续吗？')) {
+          if (el) el.classList.remove('active');
+          return;
+        }
+
+        try {
+          // 1. Fetch and parse xlsx
+          const xlsxResp = await fetch('/' + product.xlsxFile);
+          if (!xlsxResp.ok) throw new Error('无法读取配置文件');
+          const xlsxBuffer = await xlsxResp.arrayBuffer();
+          const wb = XLSX.read(xlsxBuffer, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws);
+
+          // Fill userInput (skip image and license file fields)
+          rows.forEach(row => {
+            const key = row['OEM信息修改项'];
+            const val = row['修改内容（一线填写）'] || '';
+            if (key && val && !IMAGE_ITEMS.includes(key) && !LICENSE_FILE_ITEMS.includes(key)) {
+              userInput[key] = val;
+            }
+          });
+
+          // 2. Build reverse filename map (with svg variant)
+          const reverseFilenameMap = {};
+          for (const [k, v] of Object.entries(FILENAME_MAP)) {
+            reverseFilenameMap[v] = k;
+            // Add .svg variant for .png entries
+            if (v.endsWith('.png')) {
+              reverseFilenameMap[v.replace(/\.png$/, '.svg')] = k;
+            }
+          }
+
+          // 3. Fetch all images for this vendor
+          const imagePromises = vendor.images.map(async (img) => {
+            const itemKey = reverseFilenameMap[img.name];
+            if (!itemKey) return null;
+
+            try {
+              const imgResp = await fetch('/' + img.url);
+              if (!imgResp.ok) return null;
+              const arrayBuf = await imgResp.arrayBuffer();
+
+              let mimeType = 'image/png';
+              if (img.name.endsWith('.svg')) mimeType = 'image/svg+xml';
+              else if (img.name.endsWith('.ico')) mimeType = 'image/x-icon';
+
+              const typedBlob = new Blob([arrayBuf], { type: mimeType });
+              typedBlob.name = img.name;
+              uploadedFiles[itemKey] = typedBlob;
+
+              // Convert to base64 for sessionStorage
+              return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve({ itemKey, dataUrl: reader.result });
+                reader.onerror = () => resolve(null);
+                reader.readAsDataURL(typedBlob);
+              });
+            } catch (e) {
+              console.warn('Failed to fetch image:', img.name, e);
+              return null;
+            }
+          });
+
+          const imageResults = await Promise.all(imagePromises);
+
+          // Write base64 image data to sessionStorage
+          const base64Data = {};
+          const savedBase64 = sessionStorage.getItem('uploadedImagesBase64');
+          if (savedBase64) Object.assign(base64Data, JSON.parse(savedBase64));
+
+          imageResults.forEach(r => {
+            if (r) base64Data[r.itemKey] = r.dataUrl;
+          });
+          sessionStorage.setItem('uploadedImagesBase64', JSON.stringify(base64Data));
+
+          // Also set special logo caches
+          imageResults.forEach(r => {
+            if (!r) return;
+            switch (r.itemKey) {
+              case '标签页logo': sessionStorage.setItem('_iconLogoImg', r.dataUrl); break;
+              case '主界面左侧栏收起logo': sessionStorage.setItem('_inLogoImg', r.dataUrl); break;
+              case '主界面左侧栏展开logo': sessionStorage.setItem('_foldLogoImg', r.dataUrl); break;
+            }
+          });
+
+          // 4. Try to fetch license agreement files (optional, silent skip)
+          const filesBaseUrl = product.xlsxFile.substring(0, product.xlsxFile.lastIndexOf('/')) + '/files/';
+          const licPromises = LICENSE_FILE_ITEMS.map(async (licKey) => {
+            const fileName = userInput[licKey];
+            if (!fileName) return;
+            try {
+              const licResp = await fetch('/' + filesBaseUrl + encodeURIComponent(fileName));
+              if (!licResp.ok) return;
+              const blob = await licResp.blob();
+              blob.name = fileName;
+              licenseFiles[licKey] = blob;
+
+              const reader = new FileReader();
+              reader.onload = () => {
+                let licBase64 = {};
+                const saved = sessionStorage.getItem('uploadedLicenseFiles');
+                if (saved) licBase64 = JSON.parse(saved);
+                licBase64[licKey] = reader.result;
+                sessionStorage.setItem('uploadedLicenseFiles', JSON.stringify(licBase64));
+              };
+              reader.readAsDataURL(blob);
+            } catch (e) { /* silent skip */ }
+          });
+          await Promise.all(licPromises);
+
+          // 5. Save to sessionStorage and notify parent
+          saveDataToSessionStorage();
+          window.parent.postMessage({ type: 'oemDataUpdate', fieldType: 'import' }, '*');
+          setTimeout(() => window.location.reload(), 500);
+
+        } catch (err) {
+          console.error('Failed to load product config:', err);
+          alert('加载失败：' + err.message);
+          if (el) el.classList.remove('active');
+        }
+      }
+
+      function initSidebar() {
+        // Keyboard shortcut: Escape to close sidebar
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') closeSidebar();
+        });
+        // Default open on load
+        openSidebar();
+      }
+
       renderForm();
-      
+      initSidebar();
+
       // 添加预览链接点击事件处理
       document.getElementById('layoutPreview').addEventListener('click', function(e) {
         e.preventDefault();
-        // 发送消息到父窗口
         window.parent.postMessage({type: 'showModal'}, '*');
       });
-      
+
       document.getElementById('loginPreview').addEventListener('click', function(e) {
         e.preventDefault();
-        // 发送消息到父窗口
         window.parent.postMessage({type: 'loginPreview'}, '*');
       });
     </script>
