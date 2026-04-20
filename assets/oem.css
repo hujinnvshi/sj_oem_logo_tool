@@ -11,7 +11,7 @@ body {
     margin: 0;
     padding: 0;
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
     overflow: hidden;
 }
 .container {
@@ -375,7 +375,8 @@ footer {
 .page-layout {
     display: flex;
     width: 100%;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .sidebar {
@@ -584,6 +585,8 @@ body.sidebar-open .sidebar-toggle-btn {
 
 .main-content {
     flex: 1;
+    min-width: 0;
+    min-height: 0;
     overflow-y: auto;
     padding: 2rem;
 }
